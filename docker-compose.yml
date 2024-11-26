@@ -1,0 +1,32 @@
+networks:
+  api:
+    driver: bridge
+      
+
+services:
+  app:
+    container_name: app
+    build:
+      context: ./fe
+      dockerfile: Dockerfile
+    env_file:
+      - ./fe/.env
+    ports:
+      - "${PORT}:${PORT}"
+    networks:
+      - api
+
+  server:
+    container_name: server
+    build:
+      context: ./be
+      dockerfile: Dockerfile
+    env_file:
+      - ./be/.env
+    environment:
+      ROCKET_PORT: ${ROCKET_PORT}
+      ROCKET_ADDRESS: ${ROCKET_ADDRESS}
+    ports:
+      - "${ROCKET_PORT}:${ROCKET_PORT}"
+    networks:
+      - api

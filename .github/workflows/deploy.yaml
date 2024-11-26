@@ -1,0 +1,148 @@
+name: CI/CD for Docker Images
+
+on:
+  push:
+    branches:
+      - main
+
+
+jobs:
+  backend:
+    name: Build and Push Backend Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Cache dependencies
+        uses: actions/cache@v4.1.2
+        with:
+          path: |
+            ~/rocket/.cargo
+            rocket/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/rocket/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+        
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        with:
+          rustflags: ""
+
+      - name: Build and test code
+        run: |
+          cd be
+          cargo build --verbose
+          cargo test --verbose
+  
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish a Docker image for ${{ github.repository }}/rocket
+        uses: macbre/push-to-ghcr@master
+        with:
+          context: rocket
+          dockerfile: ./rocket/Dockerfile
+          image_name: ${{ github.repository }}/rocket
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+      
+      - name: Build and test code
+        run: |
+          cd fe
+          npm ci
+          npm run build --if-present
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish a Docker image for ${{ github.repository }}/bracket
+        uses: macbre/push-to-ghcr@master
+        with:
+          context: fe
+          dockerfile: ./fe/Dockerfile
+          image_name: ${{ github.repository }}/bracket
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    needs: 
+      - backend
+      - frontend
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.1.1
+
+    - name: Copy docker-compose.yml to droplet
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
+        source: docker-compose.yml
+        target:  /root/dbcbot
+
+    - name: Create .env file on droplet
+      uses: appleboy/ssh-action@v1.1.0
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
+        script: |
+          cd ~/dbcbot
+          if [ -f .env ]; then
+            echo ".env file exists"
+          else
+            echo "PORT=${{ secrets.IMAGES_PORT }}" >> ./.env
+            echo "ROCKET_PORT=${{ secrets.BRACKET_PORT }}" >> ./.env
+            echo "ROCKET_ADDRESS=${{ secrets.ROCKET_ADDRESS }}" >> ./.env
+            echo "GITHUB_REPOSITORY=$(echo '${{ github.repository }}' | awk '{print tolower($0)}')" >> .env
+          fi
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3.0.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Deploy
+      uses: appleboy/ssh-action@v1.1.0
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
+        script: |
+          cd ~/dbcbot
+          export REPO=$(echo "${{ github.repository }}" | awk '{print tolower($0)}')
+          docker compose down
+          docker pull ghcr.io/$REPO/be
+          docker pull ghcr.io/$REPO/fe
+          docker compose up -d
+          docker compose logs
