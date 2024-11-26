@@ -50,7 +50,7 @@ jobs:
       - name: Build and publish a Docker image for ${{ github.repository }}/rocket
         uses: macbre/push-to-ghcr@master
         with:
-          context: rocket
+          context: be
           dockerfile: ./be/Dockerfile
           image_name: ${{ github.repository }}/be
           github_token: ${{ secrets.GITHUB_TOKEN }}
