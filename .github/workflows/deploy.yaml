@@ -52,7 +52,7 @@ jobs:
         with:
           context: rocket
           dockerfile: ./rocket/Dockerfile
-          image_name: ${{ github.repository }}/rocket
+          image_name: ${{ github.repository }}/be
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   frontend:
