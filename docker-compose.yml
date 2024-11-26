@@ -5,7 +5,7 @@ networks:
 
 services:
   app:
-    image: ghcr.io/${{github.repository}}/fe
+    image: ghcr.io/${GITHUB_REPOSITORY}/fe
     container_name: app
     build:
       context: ./fe
@@ -19,7 +19,7 @@ services:
 
   server:
     container_name: server
-    image: ghcr.io/${{ github.repository }}/be
+    image: ghcr.io/${GITHUB_REPOSITORY}/be
     build:
       context: ./be
       dockerfile: Dockerfile
