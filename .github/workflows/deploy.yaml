@@ -3,7 +3,7 @@ name: CI/CD for Docker Images
 on:
   push:
     branches:
-      - main
+      - master
 
 
 jobs:
@@ -102,7 +102,6 @@ jobs:
         host: ${{ secrets.DROPLET_IP }}
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        passphrase: ${{ secrets.SSH_PASSPHRASE }}
         source: docker-compose.yml
         target:  /root/dbcbot
 
@@ -112,14 +111,13 @@ jobs:
         host: ${{ secrets.DROPLET_IP }}
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        passphrase: ${{ secrets.SSH_PASSPHRASE }}
         script: |
           cd ~/dbcbot
           if [ -f .env ]; then
             echo ".env file exists"
           else
-            echo "PORT=${{ secrets.IMAGES_PORT }}" >> ./.env
-            echo "ROCKET_PORT=${{ secrets.fe_PORT }}" >> ./.env
+            echo "PORT=${{ secrets.PORT }}" >> ./.env
+            echo "ROCKET_PORT=${{ secrets.ROCKET_PORT }}" >> ./.env
             echo "ROCKET_ADDRESS=${{ secrets.ROCKET_ADDRESS }}" >> ./.env
             echo "GITHUB_REPOSITORY=$(echo '${{ github.repository }}' | awk '{print tolower($0)}')" >> .env
           fi
@@ -137,7 +135,6 @@ jobs:
         host: ${{ secrets.DROPLET_IP }}
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        passphrase: ${{ secrets.SSH_PASSPHRASE }}
         script: |
           cd ~/dbcbot
           export REPO=$(echo "${{ github.repository }}" | awk '{print tolower($0)}')
